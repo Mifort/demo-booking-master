@@ -20,10 +20,10 @@ class StoreBookingRequest extends FormRequest
     private const STEP_SECONDS = 15 * 60;
 
     /**
-     * ISO 8601 со смещением: минуты обязательны, секунды и дробная часть опциональны.
-     * Смещение — Z или ±HH:mm; диапазон часов и минут проверяется отдельно.
+     * ISO 8601 со смещением: минуты времени обязательны, секунды и дробная часть опциональны.
+     * Смещение — Z, ±HH:mm, ±HHmm или ±HH; диапазон часов и минут проверяется отдельно.
      */
-    private const ISO8601_WITH_OFFSET = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|([+-])(\d{2}):(\d{2}))$/';
+    private const ISO8601_WITH_OFFSET = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|([+-])(\d{2})(?::(\d{2})|(\d{2}))?)$/';
 
     private ?Room $room = null;
 
@@ -139,7 +139,7 @@ class StoreBookingRequest extends FormRequest
 
         if (($matches[1] ?? null) !== null) {
             $hours = (int) $matches[2];
-            $minutes = (int) $matches[3];
+            $minutes = (int) (($matches[3] ?? '') !== '' ? $matches[3] : ($matches[4] ?? '0'));
 
             if ($hours > 23 || $minutes > 59) {
                 return false;
