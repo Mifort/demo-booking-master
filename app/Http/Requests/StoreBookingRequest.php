@@ -5,9 +5,11 @@ namespace App\Http\Requests;
 use App\Models\Room;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
+use Throwable;
 
 class StoreBookingRequest extends FormRequest
 {
@@ -17,6 +19,12 @@ class StoreBookingRequest extends FormRequest
 
     private const STEP_SECONDS = 15 * 60;
 
+    /**
+     * ISO 8601 со смещением: минуты обязательны, секунды и дробная часть опциональны.
+     * Смещение — Z или ±HH:mm; диапазон часов и минут проверяется отдельно.
+     */
+    private const ISO8601_WITH_OFFSET = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|([+-])(\d{2}):(\d{2}))$/';
+
     private ?Room $room = null;
 
     public function authorize(): bool
@@ -25,15 +33,15 @@ class StoreBookingRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, ValidationRule|string>>
+     * @return array<string, array<int, ValidationRule|string|Closure>>
      */
     public function rules(): array
     {
         return [
             'room_id' => ['required', 'integer', 'exists:rooms,id'],
             'title' => ['required', 'string', 'max:255'],
-            'starts_at' => ['required', 'string', 'regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/', 'date'],
-            'ends_at' => ['required', 'string', 'regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/', 'date', 'after:starts_at'],
+            'starts_at' => ['required', 'string', $this->iso8601WithOffsetRule(), 'date'],
+            'ends_at' => ['required', 'string', $this->iso8601WithOffsetRule(), 'date', 'after:starts_at'],
         ];
     }
 
@@ -50,10 +58,8 @@ class StoreBookingRequest extends FormRequest
             'title.string' => 'Название должно быть строкой.',
             'title.max' => 'Название не должно быть длиннее 255 символов.',
             'starts_at.required' => 'Укажите время начала.',
-            'starts_at.regex' => 'Укажите начало в формате ISO 8601 со смещением, например 2026-11-02T10:00:00+03:00.',
             'starts_at.date' => 'Время начала указано неверно.',
             'ends_at.required' => 'Укажите время окончания.',
-            'ends_at.regex' => 'Укажите окончание в формате ISO 8601 со смещением, например 2026-11-02T11:00:00+03:00.',
             'ends_at.date' => 'Время окончания указано неверно.',
             'ends_at.after' => 'Время окончания должно быть позже начала.',
         ];
@@ -116,10 +122,45 @@ class StoreBookingRequest extends FormRequest
         return $this->room ??= Room::query()->with('office')->findOrFail($this->integer('room_id'));
     }
 
+    private function iso8601WithOffsetRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            if (! is_string($value) || ! $this->isValidIso8601WithOffset($value)) {
+                $fail('Укажите время в формате ISO 8601 со смещением, например 2026-11-02T10:00:00+03:00.');
+            }
+        };
+    }
+
+    private function isValidIso8601WithOffset(string $value): bool
+    {
+        if (preg_match(self::ISO8601_WITH_OFFSET, $value, $matches) !== 1) {
+            return false;
+        }
+
+        if (($matches[1] ?? null) !== null) {
+            $hours = (int) $matches[2];
+            $minutes = (int) $matches[3];
+
+            if ($hours > 23 || $minutes > 59) {
+                return false;
+            }
+        }
+
+        try {
+            Carbon::parse($value);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function isQuarterHour(CarbonInterface $instant, string $timezone): bool
     {
         $local = Carbon::parse($instant)->timezone($timezone);
 
-        return $local->second === 0 && $local->minute % 15 === 0;
+        return $local->second === 0
+            && $local->micro === 0
+            && $local->minute % 15 === 0;
     }
 }

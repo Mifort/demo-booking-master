@@ -50,6 +50,9 @@ class BookingStoreTest extends TestCase
             'прошедшая дата' => ['Europe/Moscow', '2024-01-08T10:00:00+03:00', '2024-01-08T11:00:00+03:00'],
             'воскресенье' => ['Europe/Moscow', '2026-11-01T10:00:00+03:00', '2026-11-01T11:00:00+03:00'],
             'далёкое будущее' => ['Europe/Moscow', '2030-05-06T10:00:00+03:00', '2030-05-06T11:00:00+03:00'],
+            'минуты без секунд' => ['Europe/Moscow', '2026-11-02T10:00+03:00', '2026-11-02T11:00+03:00'],
+            'нулевые миллисекунды' => ['Europe/Moscow', '2026-11-02T10:00:00.000+03:00', '2026-11-02T11:00:00.000+03:00'],
+            'смещение -03:30' => ['Europe/Moscow', '2026-11-02T09:30:00-03:30', '2026-11-02T10:30:00-03:30'],
         ];
     }
 
@@ -87,6 +90,11 @@ class BookingStoreTest extends TestCase
             'вечер utc для москвы' => ['Europe/Moscow', '2026-11-02T18:00:00Z', '2026-11-02T19:00:00Z', 'starts_at'],
             'конец раньше начала' => ['Europe/Moscow', '2026-11-02T11:00:00+03:00', '2026-11-02T10:00:00+03:00', 'ends_at'],
             'старт ровно в закрытие' => ['Europe/Moscow', '2026-11-02T20:00:00+03:00', '2026-11-02T20:15:00+03:00', 'starts_at'],
+            'ненулевые миллисекунды' => ['Europe/Moscow', '2026-11-02T10:00:00.001+03:00', '2026-11-02T11:00:00.001+03:00', 'starts_at'],
+            'смещение +24:00' => ['Europe/Moscow', '2026-11-02T10:00:00+24:00', '2026-11-02T11:00:00+24:00', 'starts_at'],
+            'минуты смещения 99' => ['Europe/Moscow', '2026-11-02T10:00:00+03:99', '2026-11-02T11:00:00+03:99', 'starts_at'],
+            'без смещения' => ['Europe/Moscow', '2026-11-02T10:00:00', '2026-11-02T11:00:00', 'starts_at'],
+            'равные начало и конец' => ['Europe/Moscow', '2026-11-02T10:00:00+03:00', '2026-11-02T10:00:00+03:00', 'ends_at'],
         ];
     }
 
@@ -179,6 +187,36 @@ class BookingStoreTest extends TestCase
         $room = $this->roomIn('Europe/Moscow');
 
         $this->postBooking($user, $room, '2026-11-02T10:00:00+03:00', '2026-11-02T11:00:00+03:00')
+            ->assertCreated();
+
+        $this->assertDatabaseHas('bookings', [
+            'room_id' => $room->id,
+            'starts_at' => '2026-11-02 07:00:00',
+            'ends_at' => '2026-11-02 08:00:00',
+        ]);
+    }
+
+    public function test_stores_utc_for_minute_precision_without_seconds(): void
+    {
+        $user = User::factory()->create();
+        $room = $this->roomIn('Europe/Moscow');
+
+        $this->postBooking($user, $room, '2026-11-02T10:00+03:00', '2026-11-02T11:00+03:00')
+            ->assertCreated();
+
+        $this->assertDatabaseHas('bookings', [
+            'room_id' => $room->id,
+            'starts_at' => '2026-11-02 07:00:00',
+            'ends_at' => '2026-11-02 08:00:00',
+        ]);
+    }
+
+    public function test_stores_utc_for_zero_fractional_seconds(): void
+    {
+        $user = User::factory()->create();
+        $room = $this->roomIn('Europe/Moscow');
+
+        $this->postBooking($user, $room, '2026-11-02T10:00:00.000+03:00', '2026-11-02T11:00:00.000+03:00')
             ->assertCreated();
 
         $this->assertDatabaseHas('bookings', [
