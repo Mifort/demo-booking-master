@@ -95,14 +95,20 @@ class StoreBookingRequest extends FormRequest
         });
     }
 
+    /**
+     * Мгновение в UTC. Колонка без пояса, а format() иначе записал бы цифры часов из смещения клиента.
+     */
     public function startsAt(): Carbon
     {
-        return Carbon::parse($this->validated('starts_at'));
+        return Carbon::parse($this->validated('starts_at'))->utc();
     }
 
+    /**
+     * Мгновение в UTC. Колонка без пояса, а format() иначе записал бы цифры часов из смещения клиента.
+     */
     public function endsAt(): Carbon
     {
-        return Carbon::parse($this->validated('ends_at'));
+        return Carbon::parse($this->validated('ends_at'))->utc();
     }
 
     public function room(): Room
