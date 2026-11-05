@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Database\Factories\OfficeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,5 +19,20 @@ class Office extends Model
     public function rooms(): HasMany
     {
         return $this->hasMany(Room::class);
+    }
+
+    /**
+     * Бронь целиком лежит в окне 09:00–20:00 местного дня, в котором она начинается.
+     * Конец ровно в 20:00 допустим.
+     */
+    public function fitsWorkingHours(CarbonInterface $start, CarbonInterface $end): bool
+    {
+        $startLocal = Carbon::parse($start)->timezone($this->timezone);
+        $endLocal = Carbon::parse($end)->timezone($this->timezone);
+        $opens = $startLocal->copy()->setTime(9, 0);
+        $closes = $startLocal->copy()->setTime(20, 0);
+
+        return $startLocal->greaterThanOrEqualTo($opens)
+            && $endLocal->lessThanOrEqualTo($closes);
     }
 }
