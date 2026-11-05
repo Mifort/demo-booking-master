@@ -33,7 +33,8 @@ class BookingDestroyTest extends TestCase
 
         $this->deleteJson('/api/bookings/'.$booking->id)
             ->assertForbidden()
-            ->assertJsonPath('message', 'Отменить бронь может только её автор.');
+            ->assertJsonPath('message', 'Отменить бронь может только её автор.')
+            ->assertJsonMissingPath('exception');
 
         $this->assertDatabaseHas('bookings', ['id' => $booking->id]);
     }
