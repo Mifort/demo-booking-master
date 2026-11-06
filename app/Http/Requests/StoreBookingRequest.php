@@ -11,6 +11,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 use Throwable;
 
+/**
+ * Проверяет данные перед созданием брони.
+ *
+ * Базовые ошибки формата и бизнес-правил возвращаются клиенту как 422
+ * до выполнения BookingController::store().
+ */
 class StoreBookingRequest extends FormRequest
 {
     private const MIN_DURATION_SECONDS = 15 * 60;
@@ -27,12 +33,17 @@ class StoreBookingRequest extends FormRequest
 
     private ?Room $room = null;
 
+    /**
+     * Создавать бронь может любой пользователь, уже прошедший auth:sanctum.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
+     * Описывает базовые правила полей запроса.
+     *
      * @return array<string, array<int, ValidationRule|string|Closure>>
      */
     public function rules(): array
@@ -46,6 +57,8 @@ class StoreBookingRequest extends FormRequest
     }
 
     /**
+     * Возвращает понятные клиенту сообщения базовой валидации.
+     *
      * @return array<string, string>
      */
     public function messages(): array
@@ -65,6 +78,9 @@ class StoreBookingRequest extends FormRequest
         ];
     }
 
+    /**
+     * После базовой валидации проверяет сетку, длительность и рабочее время офиса.
+     */
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
@@ -102,7 +118,9 @@ class StoreBookingRequest extends FormRequest
     }
 
     /**
-     * Мгновение в UTC. Колонка без пояса, а format() иначе записал бы цифры часов из смещения клиента.
+     * Возвращает проверенное начало как мгновение в UTC.
+     *
+     * Колонка без пояса, а format() иначе записал бы цифры часов из смещения клиента.
      */
     public function startsAt(): Carbon
     {
@@ -110,18 +128,26 @@ class StoreBookingRequest extends FormRequest
     }
 
     /**
-     * Мгновение в UTC. Колонка без пояса, а format() иначе записал бы цифры часов из смещения клиента.
+     * Возвращает проверенное окончание как мгновение в UTC.
+     *
+     * Колонка без пояса, а format() иначе записал бы цифры часов из смещения клиента.
      */
     public function endsAt(): Carbon
     {
         return Carbon::parse($this->validated('ends_at'))->utc();
     }
 
+    /**
+     * Загружает указанную комнату вместе с офисом и кэширует её на время запроса.
+     */
     public function room(): Room
     {
         return $this->room ??= Room::query()->with('office')->findOrFail($this->integer('room_id'));
     }
 
+    /**
+     * Создаёт правило для строгой проверки ISO 8601 с обязательным смещением.
+     */
     private function iso8601WithOffsetRule(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
@@ -131,6 +157,9 @@ class StoreBookingRequest extends FormRequest
         };
     }
 
+    /**
+     * Проверяет форму даты, допустимый диапазон смещения и возможность разбора Carbon.
+     */
     private function isValidIso8601WithOffset(string $value): bool
     {
         if (preg_match(self::ISO8601_WITH_OFFSET, $value, $matches) !== 1) {
@@ -155,6 +184,9 @@ class StoreBookingRequest extends FormRequest
         return true;
     }
 
+    /**
+     * Проверяет, что локальное время офиса попадает на границу четверти часа.
+     */
     private function isQuarterHour(CarbonInterface $instant, string $timezone): bool
     {
         $local = Carbon::parse($instant)->timezone($timezone);

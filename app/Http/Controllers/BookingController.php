@@ -23,6 +23,12 @@ class BookingController extends Controller
             ->paginate(20);
     }
 
+    /**
+     * Создаёт проверенную бронь от имени пользователя из токена.
+     *
+     * Блокировка комнаты сериализует параллельные запросы, а ограничение базы
+     * остаётся последней защитой от пересекающихся интервалов.
+     */
     public function store(StoreBookingRequest $request): JsonResponse
     {
         try {
@@ -70,6 +76,9 @@ class BookingController extends Controller
         return response()->json($booking, 201);
     }
 
+    /**
+     * Отменяет бронь, если текущий пользователь является её автором.
+     */
     public function destroy(Booking $booking): JsonResponse|Response
     {
         $decision = Gate::inspect('delete', $booking);
@@ -96,6 +105,9 @@ class BookingController extends Controller
             ]);
     }
 
+    /**
+     * Завершает запрос понятной ошибкой валидации занятого слота.
+     */
     private function throwOverlap(): never
     {
         throw ValidationException::withMessages([
@@ -103,6 +115,9 @@ class BookingController extends Controller
         ]);
     }
 
+    /**
+     * Определяет нарушение PostgreSQL exclusion-ограничения по коду SQLSTATE.
+     */
     private function isOverlapViolation(QueryException $exception): bool
     {
         return ($exception->errorInfo[0] ?? null) === '23P01';

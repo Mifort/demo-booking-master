@@ -18,7 +18,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bootstrap any application services.
+     * Связывает модель брони с правилами авторизации действий над ней.
      */
     public function boot(): void
     {

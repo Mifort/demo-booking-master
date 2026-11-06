@@ -35,7 +35,9 @@ class Booking extends Model
     }
 
     /**
-     * Брони комнаты, пересекающиеся с полуинтервалом [start, end).
+     * Ограничивает запрос бронями комнаты, пересекающими полуинтервал [start, end).
+     *
+     * Eloquent позволяет вызывать scopeOverlapping() как overlapping().
      * Стык 10:00–11:00 и 11:00–12:00 пересечением не является.
      *
      * @param  Builder<Booking>  $query
