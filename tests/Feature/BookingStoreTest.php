@@ -13,10 +13,16 @@ use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
+/**
+ * Проверяет создание брони через полный HTTP-путь приложения.
+ */
 class BookingStoreTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Проверяет, что каждый допустимый интервал создаёт бронь с ожидаемыми данными.
+     */
     #[DataProvider('acceptableIntervals')]
     public function test_accepts_a_valid_interval(string $timezone, string $startsAt, string $endsAt): void
     {
@@ -33,6 +39,8 @@ class BookingStoreTest extends TestCase
     }
 
     /**
+     * Возвращает допустимые сочетания часовых поясов, форматов ISO 8601 и границ правил.
+     *
      * @return array<string, array{string, string, string}>
      */
     public static function acceptableIntervals(): array
@@ -58,6 +66,9 @@ class BookingStoreTest extends TestCase
         ];
     }
 
+    /**
+     * Проверяет, что каждый недопустимый интервал даёт 422 и не записывается в базу.
+     */
     #[DataProvider('rejectedIntervals')]
     public function test_rejects_an_invalid_interval(
         string $timezone,
@@ -76,12 +87,15 @@ class BookingStoreTest extends TestCase
     }
 
     /**
+     * Возвращает недопустимые интервалы и поле, в котором ожидается ошибка валидации.
+     *
      * @return array<string, array{string, string, string, string}>
      */
     public static function rejectedIntervals(): array
     {
         return [
             'до открытия' => ['Europe/Moscow', '2026-11-02T08:45:00+03:00', '2026-11-02T09:00:00+03:00', 'starts_at'],
+            'до открытия в новосибирске' => ['Asia/Novosibirsk', '2026-11-02T08:45:00+07:00', '2026-11-02T09:00:00+07:00', 'starts_at'],
             'после закрытия' => ['Europe/Moscow', '2026-11-02T19:45:00+03:00', '2026-11-02T20:15:00+03:00', 'starts_at'],
             'четыре часа за пределами дня' => ['Europe/Moscow', '2026-11-02T16:15:00+03:00', '2026-11-02T20:15:00+03:00', 'starts_at'],
             'дольше четырёх часов' => ['Europe/Moscow', '2026-11-02T10:00:00+03:00', '2026-11-02T14:15:00+03:00', 'ends_at'],
@@ -99,10 +113,15 @@ class BookingStoreTest extends TestCase
             'минуты смещения 99' => ['Europe/Moscow', '2026-11-02T10:00:00+03:99', '2026-11-02T11:00:00+03:99', 'starts_at'],
             'минуты смещения 99 без двоеточия' => ['Europe/Moscow', '2026-11-02T10:00:00+0399', '2026-11-02T11:00:00+0399', 'starts_at'],
             'без смещения' => ['Europe/Moscow', '2026-11-02T10:00:00', '2026-11-02T11:00:00', 'starts_at'],
+            'невозможная календарная дата' => ['Europe/Moscow', '2026-02-30T10:00:00+03:00', '2026-03-02T11:00:00+03:00', 'starts_at'],
+            'произвольная строка вместо даты' => ['Europe/Moscow', 'не-дата', '2026-11-02T11:00:00+03:00', 'starts_at'],
             'равные начало и конец' => ['Europe/Moscow', '2026-11-02T10:00:00+03:00', '2026-11-02T10:00:00+03:00', 'ends_at'],
         ];
     }
 
+    /**
+     * Проверяет точные тексты ошибок рабочего времени и сетки 15 минут.
+     */
     public function test_explains_working_hours_and_the_quarter_hour_grid(): void
     {
         $user = User::factory()->create();
@@ -120,6 +139,9 @@ class BookingStoreTest extends TestCase
             );
     }
 
+    /**
+     * Запрещает пересечение, но разрешает соседние интервалы с общей границей.
+     */
     public function test_rejects_overlap_and_allows_back_to_back_bookings(): void
     {
         $user = User::factory()->create();
@@ -141,6 +163,9 @@ class BookingStoreTest extends TestCase
         $this->assertDatabaseCount('bookings', 3);
     }
 
+    /**
+     * Запрещает новую бронь внутри существующей и новую бронь, накрывающую существующую.
+     */
     public function test_rejects_a_booking_inside_or_covering_an_existing_one(): void
     {
         $user = User::factory()->create();
@@ -158,6 +183,9 @@ class BookingStoreTest extends TestCase
         $this->assertDatabaseCount('bookings', 1);
     }
 
+    /**
+     * Считает пересечением одно мгновение, записанное через разные смещения.
+     */
     public function test_treats_the_same_instant_in_another_offset_as_overlap(): void
     {
         $user = User::factory()->create();
@@ -171,6 +199,9 @@ class BookingStoreTest extends TestCase
             ->assertJsonValidationErrors(['starts_at']);
     }
 
+    /**
+     * Разрешает один временной интервал одновременно в разных комнатах.
+     */
     public function test_allows_the_same_time_in_another_room(): void
     {
         $user = User::factory()->create();
@@ -186,6 +217,9 @@ class BookingStoreTest extends TestCase
         $this->assertDatabaseCount('bookings', 2);
     }
 
+    /**
+     * Проверяет нормализацию времени со смещением в UTC перед записью.
+     */
     public function test_stores_the_instant_in_utc(): void
     {
         $user = User::factory()->create();
@@ -201,6 +235,9 @@ class BookingStoreTest extends TestCase
         ]);
     }
 
+    /**
+     * Проверяет UTC-запись корректного ISO 8601 без секунд.
+     */
     public function test_stores_utc_for_minute_precision_without_seconds(): void
     {
         $user = User::factory()->create();
@@ -216,6 +253,9 @@ class BookingStoreTest extends TestCase
         ]);
     }
 
+    /**
+     * Проверяет UTC-запись времени с нулевой дробной частью секунд.
+     */
     public function test_stores_utc_for_zero_fractional_seconds(): void
     {
         $user = User::factory()->create();
@@ -231,6 +271,9 @@ class BookingStoreTest extends TestCase
         ]);
     }
 
+    /**
+     * Не позволяет подменить автора полем user_id из тела запроса.
+     */
     public function test_ignores_user_id_from_the_body(): void
     {
         $author = User::factory()->create();
@@ -245,6 +288,9 @@ class BookingStoreTest extends TestCase
         $this->assertDatabaseMissing('bookings', ['user_id' => $someoneElse->id]);
     }
 
+    /**
+     * Проверяет 422 для пустых, неизвестных и заведомо опасных входных данных.
+     */
     public function test_returns_validation_errors_for_missing_or_unknown_data(): void
     {
         $user = User::factory()->create();
@@ -271,6 +317,9 @@ class BookingStoreTest extends TestCase
         $this->assertDatabaseCount('bookings', 0);
     }
 
+    /**
+     * Запрещает создание брони без аутентификации Sanctum.
+     */
     public function test_requires_authentication(): void
     {
         $room = $this->roomIn('Europe/Moscow');
@@ -283,6 +332,9 @@ class BookingStoreTest extends TestCase
         ])->assertUnauthorized();
     }
 
+    /**
+     * Проверяет exclusion-ограничение PostgreSQL прямыми вставками в обход контроллера.
+     */
     public function test_database_rejects_an_overlapping_insert(): void
     {
         $room = $this->roomIn('Europe/Moscow');
@@ -332,6 +384,8 @@ class BookingStoreTest extends TestCase
     }
 
     /**
+     * Авторизует пользователя и отправляет типовой запрос создания брони.
+     *
      * @param  array<string, mixed>  $overrides
      */
     private function postBooking(User $user, Room $room, string $startsAt, string $endsAt, array $overrides = []): TestResponse
@@ -346,6 +400,9 @@ class BookingStoreTest extends TestCase
         ], $overrides));
     }
 
+    /**
+     * Создаёт офис с нужным часовым поясом и принадлежащую ему комнату.
+     */
     private function roomIn(string $timezone): Room
     {
         return Room::factory()->for(
