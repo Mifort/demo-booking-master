@@ -19,11 +19,16 @@ use Throwable;
  */
 class StoreBookingRequest extends FormRequest
 {
-    private const MIN_DURATION_SECONDS = 15 * 60;
+    /**
+     * Шаг сетки в минутах: и минимум длительности, и кратность начала/конца.
+     */
+    private const STEP_MINUTES = 15;
+
+    private const STEP_SECONDS = self::STEP_MINUTES * 60;
+
+    private const MIN_DURATION_SECONDS = self::STEP_SECONDS;
 
     private const MAX_DURATION_SECONDS = 4 * 60 * 60;
-
-    private const STEP_SECONDS = 15 * 60;
 
     /**
      * ISO 8601 со смещением: минуты времени обязательны, секунды и дробная часть опциональны.
@@ -95,7 +100,7 @@ class StoreBookingRequest extends FormRequest
             if (! $this->isQuarterHour($start, $timezone) || ! $this->isQuarterHour($end, $timezone)) {
                 $validator->errors()->add(
                     'starts_at',
-                    'Начало и конец должны быть кратны 15 минутам по времени офиса: 10:00, 10:15, 10:30 или 10:45.',
+                    'Начало и конец должны быть кратны '.self::STEP_MINUTES.' минутам по времени офиса: 10:00, 10:15, 10:30 или 10:45.',
                 );
             }
 
@@ -104,7 +109,7 @@ class StoreBookingRequest extends FormRequest
             if ($seconds < self::MIN_DURATION_SECONDS || $seconds > self::MAX_DURATION_SECONDS || $seconds % self::STEP_SECONDS !== 0) {
                 $validator->errors()->add(
                     'ends_at',
-                    'Длительность должна быть от 15 минут до 4 часов с шагом 15 минут.',
+                    'Длительность должна быть от '.self::STEP_MINUTES.' минут до 4 часов с шагом '.self::STEP_MINUTES.' минут.',
                 );
             }
 
@@ -193,6 +198,6 @@ class StoreBookingRequest extends FormRequest
 
         return $local->second === 0
             && $local->micro === 0
-            && $local->minute % 15 === 0;
+            && $local->minute % self::STEP_MINUTES === 0;
     }
 }
